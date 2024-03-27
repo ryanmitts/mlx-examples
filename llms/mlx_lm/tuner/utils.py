@@ -1,4 +1,5 @@
 import os
+import re
 from typing import Dict
 
 import mlx.core as mx
@@ -83,19 +84,39 @@ def apply_lora_layers(model: nn.Module, adapter_file: str) -> nn.Module:
     if not os.path.exists(adapter_file):
         raise FileNotFoundError(f"The adapter file does not exist: {adapter_file}")
 
-    adapters = list(mx.load(adapter_file).items())
+    _, adapters_extension = os.path.splitext(adapter_file)
 
     linear_replacements = []
+
+    if adapters_extension == ".npz":
+        adapters_import = mx.load(adapter_file)  # Metadata not supported on npz
+    else:
+        adapters_import, metadata = mx.load(adapter_file, return_metadata=True)
+        if not metadata or metadata["format"] != "pt":
+            raise ValueError(f"Unsupported adapters format {metadata['format']}")
+        # PyTorchs nn.Linear module has the dimensions reversed than what is needed.
+        # https://github.com/pytorch/pytorch/blob/main/torch/nn/modules/linear.py#L98
+        # This normalized the layer names to remove any extra `base_model` or `model` names.
+        # Also removes the PyTorch `.weight` layer, which is the weights for the MLX linear layer.
+        adapters_import = {
+            re.search(r"model.(?!model\.)(.*?)(?=$|.weight)", k.lower()).group(
+                0
+            ): mx.transpose(v)
+            for k, v in adapters_import.items()
+        }
+
+    adapters = list(adapters_import.items())
+
     lora_layers = set(
         [name.replace(".lora_a", "").replace(".lora_b", "") for name, _ in adapters]
     )
+
     for name, module in model.named_modules():
         if name in lora_layers:
             replacement_module = LoRALinear.from_linear(module)
             linear_replacements.append((name, replacement_module))
 
     model.update_modules(tree_unflatten(linear_replacements))
-
     model.update(tree_unflatten(adapters))
 
     return model

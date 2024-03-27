@@ -10,10 +10,10 @@ class LoRALinear(nn.Module):
     @staticmethod
     def from_linear(
         linear: nn.Linear,
-        r: int = 8,
-        alpha: float = 16,
-        dropout: float = 0.0,
-        scale: float = 10.0,
+        r: int = 16,
+        alpha: float = 32,
+        dropout: float = 0.1,
+        scale: float = 1.0,
     ):
         # TODO remove when input_dims and output_dims are attributes
         # on linear and quantized linear
@@ -71,10 +71,10 @@ class LoRALinear(nn.Module):
         self,
         input_dims: int,
         output_dims: int,
-        r: int = 8,
-        alpha: float = 16,
-        dropout: float = 0.0,
-        scale: float = 10.0,
+        r: int = 16,
+        alpha: float = 32,
+        dropout: float = 0.1,
+        scale: float = 1.0,
         bias: bool = False,
     ):
         super().__init__()
